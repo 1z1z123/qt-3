@@ -1,0 +1,119 @@
+#include "idatabase.h"
+#include <QUuid>
+#include <QDebug>
+
+void IDatabase::initDatabase()
+{
+    database = QSqlDatabase::addDatabase("QSQLITE");
+    QString aFile = "Lab4a.db";
+    database.setDatabaseName(aFile);
+
+    if(!database.open()){
+        qDebug() << "failed to open database";
+    }
+    else{
+        qDebug() << "open database is ok";
+        createTables();
+    }
+}
+
+bool IDatabase::initPatientMoble()
+{
+    patientTabMoble = new QSqlTableModel(this, database);
+    patientTabMoble->setTable("patient");
+    patientTabMoble->setEditStrategy(QSqlTableModel::OnManualSubmit);//数据保存方式
+    patientTabMoble->setSort(patientTabMoble->fieldIndex("name"), Qt::AscendingOrder);//排序
+    if(!(patientTabMoble->select()))
+        return false;
+    thePatientSelection = new QItemSelectionModel(patientTabMoble);
+    return true;
+}
+
+int IDatabase::addNewPatient()
+{
+    patientTabMoble->insertRow(patientTabMoble->rowCount(), QModelIndex());
+    QModelIndex curIndex = patientTabMoble->index(patientTabMoble->rowCount() - 1, 1);
+
+    int curRecNo = curIndex.row();
+    QSqlRecord curRec = patientTabMoble->record(curRecNo);
+    curRec.setValue("CREATEDTIMETAMP", QDateTime::currentDateTime().toString("yyyy-MM-dd"));
+    curRec.setValue("ID", QUuid::createUuid().toString(QUuid::WithoutBraces));
+
+    patientTabMoble->setRecord(curRecNo,curRec);
+
+    return curIndex.row();
+}
+
+bool IDatabase::searchPatient(QString filter)
+{
+    patientTabMoble->setFilter(filter);
+    return patientTabMoble->select();
+}
+
+bool IDatabase::deleteCurrentPatient()
+{
+    QModelIndex curIndex = thePatientSelection->currentIndex();
+    patientTabMoble->removeRow(curIndex.row());
+    patientTabMoble->submitAll();
+    patientTabMoble->select();
+    return true;
+}
+
+bool IDatabase::submiPatientEdit()
+{
+    return patientTabMoble->submitAll();
+}
+
+void IDatabase::revertPatientEdit()
+{
+    patientTabMoble->revertAll();
+}
+
+QString IDatabase::userLogin(QString userName, QString password)
+{
+    QSqlQuery query;
+    query.prepare("select username, password from user where username = :USER");
+    query.bindValue(":USER",userName);
+    query.exec();
+    if(query.first() && query.value("username").isValid()){
+        QString passwd = query.value("password").toString();
+        if(passwd == password){
+            qDebug() << "loginOK";
+            return "loginOK";
+        }
+        else{
+            qDebug() << "wrongPassword";
+            return "wrongPassword";
+        }
+    }
+    else{
+        qDebug() << "no such user";
+        return "wrongUsername";
+    }
+}
+
+void IDatabase::createTables()
+{
+    QSqlQuery query;
+    
+    // 创建用户表
+    query.exec("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY AUTOINCREMENT, username VARCHAR(20) UNIQUE NOT NULL, password VARCHAR(50) NOT NULL, role VARCHAR(20) NOT NULL)");
+    
+    // 创建患者表
+    query.exec("CREATE TABLE IF NOT EXISTS patient (ID VARCHAR(50) PRIMARY KEY, NAME VARCHAR(50) NOT NULL, ID_CARD VARCHAR(20), HIGHT REAL, WEIGHT REAL, MOBLEPHONE VARCHAR(20), DOB VARCHAR(20), SEX VARCHAR(10), CREATEDTIMETAMP VARCHAR(20))");
+    
+    // 创建医生表
+    query.exec("CREATE TABLE IF NOT EXISTS doctor (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(50) NOT NULL, department VARCHAR(50), position VARCHAR(50), phone VARCHAR(20))");
+    
+    // 创建部门表
+    query.exec("CREATE TABLE IF NOT EXISTS department (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(50) NOT NULL, description VARCHAR(200))");
+    
+    // 添加初始管理员用户
+    query.exec("INSERT OR IGNORE INTO user (username, password, role) VALUES ('zzg666', '666', 'admin')");
+}
+
+IDatabase::IDatabase(QObject *parent)
+    : QObject{parent}
+{
+    initDatabase();
+}

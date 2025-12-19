@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../img/logout.png</file>
+        <file>../img/Return.png</file>
+        <file>../img/查找.png</file>
+        <file>../img/删除.png</file>
+        <file>../img/添加.png</file>
+        <file>../img/修改.png</file>
+        <file>../img/1.png</file>
+    </qresource>
+</RCC>
